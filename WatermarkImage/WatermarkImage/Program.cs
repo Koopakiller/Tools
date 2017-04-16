@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -12,7 +13,7 @@ namespace WatermarkImage
     {
         private static void Main(String[] args)
         {
-            var watermark = args?[0];
+            var watermark = args.Length == 0 ? null : args?[0];
             if (String.IsNullOrEmpty(watermark) || watermark.ToLower() == "help" || watermark == "?")
             {
                 ShowHelp();
@@ -38,54 +39,53 @@ namespace WatermarkImage
                         Console.WriteLine($"Stacktrace:\n{ex.StackTrace}");
                     }
                 }
-
+            }
+            if (Debugger.IsAttached)
+            {
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
             }
         }
 
         private static void ProcessFiles(String watermarkFile, IEnumerable<String> files, String targetPath)
         {
             Console.WriteLine($"Watermark file: {watermarkFile}");
-            if (!Directory.Exists(targetPath))
-            {
-                Directory.CreateDirectory(targetPath);
-            }
             var watermark = new Bitmap(watermarkFile);
             foreach (var file in files)
             {
-                Console.WriteLine($"Watermarking started: {file}");
-                var img = new Bitmap(file);
-
-                var destination = new Bitmap(img.Width, img.Height, PixelFormat.Format32bppArgb);
-                using (var graphics = Graphics.FromImage(destination))
-                {
-                    graphics.CompositingMode = CompositingMode.SourceOver; // this is the default, but just to be clear
-
-                    var destinationRect = new Rectangle(0, 0, destination.Width, destination.Height);
-                    graphics.DrawImage(img, destinationRect);
-                    graphics.DrawImage(watermark, destinationRect);
-
-                    var targetFilename = Path.Combine(targetPath, Path.GetFileName(file));
-                    //target.Save(targetFilename, GetImageFormatFromExtension(Path.GetExtension(file)));
-                    Console.WriteLine($"Target file: {targetFilename}");
-                    destination.Save(targetFilename, ImageFormat.Png);
-                    Console.WriteLine($"File created");
-                }
+                var sourceFilePath = Path.GetDirectoryName(file);
+                var fileName = Path.GetFileName(file);
+                var targetDirectory = Path.Combine(sourceFilePath, targetPath);
+                var targetFilePath = Path.Combine(targetDirectory, fileName);
+                EnsureDirectoryExists(targetDirectory);
+                ProcessFile(file, watermark, targetFilePath);
             }
         }
 
-        private static ImageFormat GetImageFormatFromExtension(String ext)
+        private static void ProcessFile(String file, Bitmap watermark, String targetFilename)
         {
-            switch (ext.ToLower())
+            Console.WriteLine($"Watermarking started: {file}");
+            var img = new Bitmap(file);
+
+            var destination = new Bitmap(img.Width, img.Height, PixelFormat.Format32bppArgb);
+            using (var graphics = Graphics.FromImage(destination))
             {
-                case ".jpg":
-                case ".jpeg":
-                    return ImageFormat.Jpeg;
-                case ".png":
-                    return ImageFormat.Png;
-                case ".gif":
-                    return ImageFormat.Png;
-                default:
-                    throw new InvalidOperationException();
+                graphics.CompositingMode = CompositingMode.SourceOver;
+
+                var destinationRect = new Rectangle(0, 0, destination.Width, destination.Height);
+                graphics.DrawImage(img, destinationRect);
+                graphics.DrawImage(watermark, destinationRect);
+                Console.WriteLine($"Target file: {targetFilename}");
+                destination.Save(targetFilename, ImageFormat.Png);
+                Console.WriteLine($"File created");
+            }
+        }
+
+        private static void EnsureDirectoryExists(String targetPath)
+        {
+            if (!Directory.Exists(targetPath))
+            {
+                Directory.CreateDirectory(targetPath);
             }
         }
 
